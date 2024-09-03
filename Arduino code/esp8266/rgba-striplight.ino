@@ -30,7 +30,7 @@ CRGB leds[NUM_LEDS];
 #define API_KEY "APIKEY"
 
 // Insert RTDB URLefine the RTDB URL */
-#define DATABASE_URL "esp8266-455eb-default-rtdb.firebaseio.com/ " 
+#define DATABASE_URL "DATABASEURL" 
 
 //Define Firebase Data object
 FirebaseData fbdo;
@@ -48,17 +48,24 @@ ESP8266WiFiMulti wifiMulti;
 
 void setup(){
   Serial.begin(9600);
+  FastLED.addLeds<WS2811, DATA_PIN, GRB>(leds, NUM_LEDS);
+  for(int i=0;i<NUM_LEDS;i++) {
+    leds[i] = CRGB(96,96,96);
+    FastLED.show();
+    FastLED.setBrightness(255);
+    delay(10);
+  }
   conncection();
-
- FastLED.addLeds<WS2811, DATA_PIN, GRB>(leds, NUM_LEDS);
+ 
 }
 
 void conncection() {
+ 
   WiFi.persistent(false);
-  wifiMulti.addAP("Akshay", "Akshu@8000");
-  wifiMulti.addAP("Akshay", "123456789");
-  wifiMulti.addAP("Kajal", "Akshu@8000");
-  wifiMulti.addAP("Kajal", "123456789");
+  wifiMulti.addAP("WIFINAME", "PASSWORD");
+  wifiMulti.addAP("WIFINAME", "PASSWORD");
+  wifiMulti.addAP("WIFINAME", "PASSWORD");
+  wifiMulti.addAP("WIFINAME", "PASSWORD");
       
   Serial.print("Connecting to Wi-Fi");
   while (wifiMulti.run() != WL_CONNECTED){
@@ -123,6 +130,81 @@ void waterFlowEffect(uint8_t red, uint8_t green, uint8_t blue,uint8_t opacity) {
                 
 }
 
+
+void sweepAnimation(uint8_t red, uint8_t green, uint8_t blue,uint8_t opacity) {
+
+  for(int i=0;i<NUM_LEDS;i++) {
+    leds[i] = CRGB(red,green,blue);
+    FastLED.show();
+    FastLED.setBrightness(opacity);
+    delay(10);
+  }
+  
+   for(int i=NUM_LEDS;i > 0;i--) {
+    leds[i] = CRGB(0,0,0);
+    FastLED.show();
+    FastLED.setBrightness(opacity);
+    delay(5);
+  }
+ 
+}
+
+
+void sweepAnimation1(uint8_t red, uint8_t green, uint8_t blue,uint8_t opacity) {
+
+  for(int i=0;i< (NUM_LEDS/ 2);i++) {
+
+      int start  = (NUM_LEDS/ 2) + i;
+      int end  = (NUM_LEDS/ 2) - i;
+     leds[start] = CRGB(red,green,blue);
+      leds[end] = CRGB(red,green,blue);
+      FastLED.show();
+     FastLED.setBrightness(opacity);
+     delay(10);
+  }
+
+
+  for(int i=0;i< (NUM_LEDS/ 2);i++) {
+
+      int start  = (NUM_LEDS/ 2) + i;
+      int end  = (NUM_LEDS/ 2) - i;
+     leds[start] = CRGB(0,0,0);
+      leds[end] = CRGB(0,0,0);
+      FastLED.show();
+     FastLED.setBrightness(opacity);
+     delay(10);
+  }  
+ 
+}
+
+
+void sweepAnimation2(uint8_t red, uint8_t green, uint8_t blue,uint8_t opacity) {
+
+  for(int i=0;i< (NUM_LEDS / 2);i++) {
+
+      int start = i + 1;
+      int end  = NUM_LEDS - i;
+      leds[start] = CRGB(red,green,blue);
+      leds[end] = CRGB(red,green,blue);
+      FastLED.show();
+      FastLED.setBrightness(opacity);
+      delay(10);
+  }
+
+
+  for(int i=0;i< (NUM_LEDS/ 2);i++) {
+
+    int start  = (NUM_LEDS/ 2) + i;
+    int end  = (NUM_LEDS/ 2) - i;
+    leds[start] = CRGB(0,0,0);
+    leds[end] = CRGB(0,0,0);
+    FastLED.show();
+    FastLED.setBrightness(opacity);
+     delay(10);
+  }  
+
+}
+
 void loop(){
 
   while (wifiMulti.run() != WL_CONNECTED){
@@ -157,7 +239,14 @@ void loop(){
                   int startPosition = 0;
                   CRGB color = CRGB(red, green, blue); // Red color, adjust values as needed
                   animateShootingStar(startPosition, color, STAR_LENGTH, STAR_SPEED);
-                } else {
+                } else if(effect == "sweepAnimation") {
+                    sweepAnimation(red,green,blue,opacity);
+                } else if(effect == "sweepAnimation1") {
+                      sweepAnimation1(red,green,blue,opacity);
+                }else if(effect == "sweepAnimation2") {
+                     sweepAnimation2(red,green,blue,opacity);
+                  
+              } else {
                   waterFlowEffect(red,green,blue,opacity);
                   updateData.add("/isStripLightUpdated",false);
 
@@ -176,3 +265,4 @@ void loop(){
   }
   delay(1);
 }
+
