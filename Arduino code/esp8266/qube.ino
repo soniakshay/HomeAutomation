@@ -95,22 +95,22 @@ void loop(){
                        }
 
 
-                        for (JsonPair kv : jsonBuffer.as<JsonObject>()) {
+                       for (JsonPair kv : jsonBuffer.as<JsonObject>()) {
                             const char* value = kv.value().as<const char*>();
                             String concatenatedString = "lights/";
                              concatenatedString += value;
                             if(tiltState == HIGH) {
                              updateData.add(concatenatedString ,"OFF");
-
+                            updateData.add("isUpdated" ,true);
                             }
                             if(tiltState == LOW) {
                              updateData.add(concatenatedString ,"ON");
-
+                             updateData.add("isUpdated" ,true);
                             }
                              Serial.print(", Value: ");
                              Serial.println(kv.value().as<const char*>()); // Get value
                              
-                         }
+                        }
                         Firebase.RTDB.updateNode(&fbdo, "/",&updateData);
 
                        
