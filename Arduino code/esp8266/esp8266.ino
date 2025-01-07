@@ -5,6 +5,13 @@
 #endif
 #include <Espalexa.h>
 #include <Firebase_ESP_Client.h>
+#include <time.h>
+
+const char* ntpServer = "pool.ntp.org";
+const long gmtOffset_sec = 19800; // 5 hours * 3600 + 30 minutes * 60
+const int daylightOffset_sec = 0;
+unsigned long previousMillis = 0;
+const unsigned long interval = 3000; // 30 seconds in milliseconds
 
 //Provide the token generation process info.
 #include "addons/TokenHelper.h"
@@ -17,7 +24,6 @@
 
 // Insert RTDB URLefine the RTDB URL */
 #define DATABASE_URL "esp8266-455eb-default-rtdb.firebaseio.com/ " 
-
 //Define Firebase Data object
 FirebaseData fbdo;
 
@@ -26,7 +32,6 @@ FirebaseConfig config;
 
 Espalexa espalexa;
 bool signupOK = false;
-
 
 ESP8266WiFiMulti wifiMulti;
 
@@ -72,6 +77,16 @@ void sixteenLightChanged(uint8_t brightness);
 void setup(){
   Serial.begin(9600);
   conncection();
+  // Configure time with NTP server
+  configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
+
+  // Wait for time to be set
+  struct tm timeinfo;
+  if (!getLocalTime(&timeinfo)) {
+    Serial.println("Failed to obtain time");
+    return;
+  }
+
 
 }
 
@@ -81,7 +96,6 @@ void conncection() {
   wifiMulti.addAP("WIFINAME", "WIFI_PASSWORD");
   wifiMulti.addAP("WIFINAME", "WIFI_PASSWORD");
   wifiMulti.addAP("WIFINAME", "WIFI_PASSWORD");
-  
       
   Serial.print("Connecting to Wi-Fi");
   while (wifiMulti.run() != WL_CONNECTED){
@@ -124,12 +138,31 @@ void conncection() {
   Firebase.begin(&config, &auth);
   Firebase.reconnectWiFi(true);
 }
-void loop(){
 
+void updateLastSeen() {
+    struct tm timeinfo;
+    if (getLocalTime(&timeinfo)) {
+       time_t now = time(nullptr);
+        if(now) {
+          FirebaseJson updateData;
+          updateData.add("lastseen",String(now));
+          Firebase.RTDB.updateNode(&fbdo, "/",&updateData);
+        }
+    }
+
+}
+void loop(){
+ unsigned long currentMillis = millis();
   while (wifiMulti.run() != WL_CONNECTED){
     conncection();
   }
   if (Firebase.ready() && signupOK ){
+     if(currentMillis - previousMillis >= interval) {
+         previousMillis = currentMillis;
+          updateLastSeen();
+      }
+  
+
        if(Firebase.RTDB.getJSON(&fbdo, "/isUpdated")) {
           bool value = fbdo.to<bool>();
           if(value) {
@@ -137,7 +170,7 @@ void loop(){
             if(Firebase.RTDB.getJSON(&fbdo, "/lights"))  {
                 updateData.add("isUpdated",false);
                 Serial.println(fbdo.to<FirebaseJson>().raw());
-                 Firebase.RTDB.updateNode(&fbdo, "/",&updateData);
+                Firebase.RTDB.updateNode(&fbdo, "/",&updateData);
             } else {
              Serial.println(fbdo.errorReason().c_str());
              } 
@@ -148,32 +181,41 @@ void loop(){
 
   }
   espalexa.loop();
-  delay(800);
+  delay(1);
 }
 
 void firstLightChanged(uint8_t brightness) {
   
+
   FirebaseJson updateData;
   if(brightness == 255) 
   {
-      updateData.add("light1","ON");
-      Firebase.RTDB.updateNode(&fbdo, "/lights",&updateData);
+      updateData.add("isUpdated",true);
+      updateData.add("lights/light1","ON");
+
+      Firebase.RTDB.updateNode(&fbdo, "/",&updateData);
   }  else {
-      updateData.add("light1","OFF");
-      Firebase.RTDB.updateNode(&fbdo, "/lights",&updateData);
+      updateData.add("isUpdated",true);
+      updateData.add("lights/light1","OFF");
+      Firebase.RTDB.updateNode(&fbdo, "/",&updateData);
   }
+
+
  }
 
  void secondLightChanged(uint8_t brightness) {
   
-  FirebaseJson updateData;
+ FirebaseJson updateData;
   if(brightness == 255) 
   {
-      updateData.add("light2","ON");
-      Firebase.RTDB.updateNode(&fbdo, "/lights",&updateData);
+      updateData.add("isUpdated",true);
+      updateData.add("lights/light2","ON");
+
+      Firebase.RTDB.updateNode(&fbdo, "/",&updateData);
   }  else {
-      updateData.add("light2","OFF");
-      Firebase.RTDB.updateNode(&fbdo, "/lights",&updateData);
+      updateData.add("isUpdated",true);
+      updateData.add("lights/light2","OFF");
+      Firebase.RTDB.updateNode(&fbdo, "/",&updateData);
   }
  }
 
@@ -184,11 +226,14 @@ void thirtdLightChanged(uint8_t brightness)
   FirebaseJson updateData;
   if(brightness == 255) 
   {
-      updateData.add("light3","ON");
-      Firebase.RTDB.updateNode(&fbdo, "/lights",&updateData);
+      updateData.add("isUpdated",true);
+      updateData.add("lights/light3","ON");
+
+      Firebase.RTDB.updateNode(&fbdo, "/",&updateData);
   }  else {
-      updateData.add("light3","OFF");
-      Firebase.RTDB.updateNode(&fbdo, "/lights",&updateData);
+      updateData.add("isUpdated",true);
+      updateData.add("lights/light3","OFF");
+      Firebase.RTDB.updateNode(&fbdo, "/",&updateData);
   }
  }
 
@@ -197,14 +242,17 @@ void thirtdLightChanged(uint8_t brightness)
 void fourthLightChanged(uint8_t brightness)
 {
   
-  FirebaseJson updateData;
+FirebaseJson updateData;
   if(brightness == 255) 
   {
-      updateData.add("light4","ON");
-      Firebase.RTDB.updateNode(&fbdo, "/lights",&updateData);
+      updateData.add("isUpdated",true);
+      updateData.add("lights/light4","ON");
+
+      Firebase.RTDB.updateNode(&fbdo, "/",&updateData);
   }  else {
-      updateData.add("light4","OFF");
-      Firebase.RTDB.updateNode(&fbdo, "/lights",&updateData);
+      updateData.add("isUpdated",true);
+      updateData.add("lights/light4","OFF");
+      Firebase.RTDB.updateNode(&fbdo, "/",&updateData);
   }
  }
 
@@ -212,14 +260,17 @@ void fourthLightChanged(uint8_t brightness)
 void fifthLightChanged(uint8_t brightness)
 {
   
-  FirebaseJson updateData;
+FirebaseJson updateData;
   if(brightness == 255) 
   {
-      updateData.add("light5","ON");
-      Firebase.RTDB.updateNode(&fbdo, "/lights",&updateData);
+      updateData.add("isUpdated",true);
+      updateData.add("lights/light5","ON");
+
+      Firebase.RTDB.updateNode(&fbdo, "/",&updateData);
   }  else {
-      updateData.add("light5","OFF");
-      Firebase.RTDB.updateNode(&fbdo, "/lights",&updateData);
+      updateData.add("isUpdated",true);
+      updateData.add("lights/light5","OFF");
+      Firebase.RTDB.updateNode(&fbdo, "/",&updateData);
   }
  }
 
@@ -230,11 +281,14 @@ void sixthLightChanged(uint8_t brightness)
   FirebaseJson updateData;
   if(brightness == 255) 
   {
-      updateData.add("light6","ON");
-      Firebase.RTDB.updateNode(&fbdo, "/lights",&updateData);
+      updateData.add("isUpdated",true);
+      updateData.add("lights/light","ON");
+
+      Firebase.RTDB.updateNode(&fbdo, "/",&updateData);
   }  else {
-      updateData.add("light6","OFF");
-      Firebase.RTDB.updateNode(&fbdo, "/lights",&updateData);
+      updateData.add("isUpdated",true);
+      updateData.add("lights/light","OFF");
+      Firebase.RTDB.updateNode(&fbdo, "/",&updateData);
   }
  }
 
@@ -245,11 +299,14 @@ void sevenLightChanged(uint8_t brightness)
   FirebaseJson updateData;
   if(brightness == 255) 
   {
-      updateData.add("light7","ON");
-      Firebase.RTDB.updateNode(&fbdo, "/lights",&updateData);
+      updateData.add("isUpdated",true);
+      updateData.add("lights/light","ON");
+
+      Firebase.RTDB.updateNode(&fbdo, "/",&updateData);
   }  else {
-      updateData.add("light7","OFF");
-      Firebase.RTDB.updateNode(&fbdo, "/lights",&updateData);
+      updateData.add("isUpdated",true);
+      updateData.add("lights/light7","OFF");
+      Firebase.RTDB.updateNode(&fbdo, "/",&updateData);
   }
  }
 
@@ -258,14 +315,17 @@ void sevenLightChanged(uint8_t brightness)
 void eightLightChanged(uint8_t brightness)
 {
   
-  FirebaseJson updateData;
+FirebaseJson updateData;
   if(brightness == 255) 
   {
-      updateData.add("light8","ON");
-      Firebase.RTDB.updateNode(&fbdo, "/lights",&updateData);
+      updateData.add("isUpdated",true);
+      updateData.add("lights/light8","ON");
+
+      Firebase.RTDB.updateNode(&fbdo, "/",&updateData);
   }  else {
-      updateData.add("light8","OFF");
-      Firebase.RTDB.updateNode(&fbdo, "/lights",&updateData);
+      updateData.add("isUpdated",true);
+      updateData.add("lights/light8","OFF");
+      Firebase.RTDB.updateNode(&fbdo, "/",&updateData);
   }
  }
 
@@ -280,25 +340,31 @@ void eightLightChanged(uint8_t brightness)
   FirebaseJson updateData;
   if(brightness == 255) 
   {
-      updateData.add("light9","ON");
-      Firebase.RTDB.updateNode(&fbdo, "/lights",&updateData);
+      updateData.add("isUpdated",true);
+      updateData.add("lights/light9","ON");
+
+      Firebase.RTDB.updateNode(&fbdo, "/",&updateData);
   }  else {
-      updateData.add("light9","OFF");
-      Firebase.RTDB.updateNode(&fbdo, "/lights",&updateData);
+      updateData.add("isUpdated",true);
+      updateData.add("lights/light9","OFF");
+      Firebase.RTDB.updateNode(&fbdo, "/",&updateData);
   }
  }
 
 void tenLightChanged(uint8_t brightness)
 {
   
-  FirebaseJson updateData;
+FirebaseJson updateData;
   if(brightness == 255) 
   {
-      updateData.add("light10","ON");
-      Firebase.RTDB.updateNode(&fbdo, "/lights",&updateData);
+      updateData.add("isUpdated",true);
+      updateData.add("lights/light10","ON");
+
+      Firebase.RTDB.updateNode(&fbdo, "/",&updateData);
   }  else {
-      updateData.add("light10","OFF");
-      Firebase.RTDB.updateNode(&fbdo, "/lights",&updateData);
+      updateData.add("isUpdated",true);
+      updateData.add("lights/light10","OFF");
+      Firebase.RTDB.updateNode(&fbdo, "/",&updateData);
   }
  }
 
@@ -313,11 +379,14 @@ void elevenLightChanged(uint8_t brightness)
   FirebaseJson updateData;
   if(brightness == 255) 
   {
-      updateData.add("light11","ON");
-      Firebase.RTDB.updateNode(&fbdo, "/lights",&updateData);
+      updateData.add("isUpdated",true);
+      updateData.add("lights/light11","ON");
+
+      Firebase.RTDB.updateNode(&fbdo, "/",&updateData);
   }  else {
-      updateData.add("light11","OFF");
-      Firebase.RTDB.updateNode(&fbdo, "/lights",&updateData);
+      updateData.add("isUpdated",true);
+      updateData.add("lights/light11","OFF");
+      Firebase.RTDB.updateNode(&fbdo, "/",&updateData);
   }
  }
 
@@ -326,14 +395,17 @@ void elevenLightChanged(uint8_t brightness)
 void twelveLightChanged(uint8_t brightness)
 {
   
-  FirebaseJson updateData;
+FirebaseJson updateData;
   if(brightness == 255) 
   {
-      updateData.add("light12","ON");
-      Firebase.RTDB.updateNode(&fbdo, "/lights",&updateData);
+      updateData.add("isUpdated",true);
+      updateData.add("lights/light12","ON");
+
+      Firebase.RTDB.updateNode(&fbdo, "/",&updateData);
   }  else {
-      updateData.add("light12","OFF");
-      Firebase.RTDB.updateNode(&fbdo, "/lights",&updateData);
+      updateData.add("isUpdated",true);
+      updateData.add("lights/light12","OFF");
+      Firebase.RTDB.updateNode(&fbdo, "/",&updateData);
   }
  }
 
@@ -345,14 +417,17 @@ void twelveLightChanged(uint8_t brightness)
 void thirteenLightChanged(uint8_t brightness)
 {
   
-  FirebaseJson updateData;
+FirebaseJson updateData;
   if(brightness == 255) 
   {
-      updateData.add("light13","ON");
-      Firebase.RTDB.updateNode(&fbdo, "/lights",&updateData);
+      updateData.add("isUpdated",true);
+      updateData.add("lights/light13","ON");
+
+      Firebase.RTDB.updateNode(&fbdo, "/",&updateData);
   }  else {
-      updateData.add("light13","OFF");
-      Firebase.RTDB.updateNode(&fbdo, "/lights",&updateData);
+      updateData.add("isUpdated",true);
+      updateData.add("lights/light13","OFF");
+      Firebase.RTDB.updateNode(&fbdo, "/",&updateData);
   }
  }
 
@@ -361,14 +436,17 @@ void thirteenLightChanged(uint8_t brightness)
 void fourteenLightChanged(uint8_t brightness)
 {
   
-  FirebaseJson updateData;
+FirebaseJson updateData;
   if(brightness == 255) 
   {
-      updateData.add("light14","ON");
-      Firebase.RTDB.updateNode(&fbdo, "/lights",&updateData);
+      updateData.add("isUpdated",true);
+      updateData.add("lights/light14","ON");
+
+      Firebase.RTDB.updateNode(&fbdo, "/",&updateData);
   }  else {
-      updateData.add("light14","OFF");
-      Firebase.RTDB.updateNode(&fbdo, "/lights",&updateData);
+      updateData.add("isUpdated",true);
+      updateData.add("lights/light14","OFF");
+      Firebase.RTDB.updateNode(&fbdo, "/",&updateData);
   }
  }
 
@@ -376,14 +454,17 @@ void fourteenLightChanged(uint8_t brightness)
 void fifteenLightChanged(uint8_t brightness)
 {
   
-  FirebaseJson updateData;
+FirebaseJson updateData;
   if(brightness == 255) 
   {
-      updateData.add("light15","ON");
-      Firebase.RTDB.updateNode(&fbdo, "/lights",&updateData);
+      updateData.add("isUpdated",true);
+      updateData.add("lights/light15","ON");
+
+      Firebase.RTDB.updateNode(&fbdo, "/",&updateData);
   }  else {
-      updateData.add("light15","OFF");
-      Firebase.RTDB.updateNode(&fbdo, "/lights",&updateData);
+      updateData.add("isUpdated",true);
+      updateData.add("lights/light15","OFF");
+      Firebase.RTDB.updateNode(&fbdo, "/",&updateData);
   }
  }
 
@@ -391,15 +472,19 @@ void fifteenLightChanged(uint8_t brightness)
 void sixteenLightChanged(uint8_t brightness)
 {
   
-  FirebaseJson updateData;
+FirebaseJson updateData;
   if(brightness == 255) 
   {
-      updateData.add("light16","ON");
-      Firebase.RTDB.updateNode(&fbdo, "/lights",&updateData);
+      updateData.add("isUpdated",true);
+      updateData.add("lights/light16","ON");
+
+      Firebase.RTDB.updateNode(&fbdo, "/",&updateData);
   }  else {
-      updateData.add("light16","OFF");
-      Firebase.RTDB.updateNode(&fbdo, "/lights",&updateData);
+      updateData.add("isUpdated",true);
+      updateData.add("lights/light16","OFF");
+      Firebase.RTDB.updateNode(&fbdo, "/",&updateData);
   }
+  
  }
 
 
