@@ -5,9 +5,13 @@
 #endif
 #include <Espalexa.h>
 #include <Firebase_ESP_Client.h>
+#include <time.h>
 
-
-
+const char* ntpServer = "pool.ntp.org";
+const long gmtOffset_sec = 19800; // 5 hours * 3600 + 30 minutes * 60
+const int daylightOffset_sec = 0;
+unsigned long previousMillis = 0;
+const unsigned long interval = 3000; // 30 seconds in milliseconds
 
 //Provide the token generation process info.
 #include "addons/TokenHelper.h"
@@ -18,10 +22,8 @@
 // Insert Firebase project API Key
 #define API_KEY "YOURKEY"
 
-
 // Insert RTDB URLefine the RTDB URL */
 #define DATABASE_URL "esp8266-455eb-default-rtdb.firebaseio.com/ " 
-
 //Define Firebase Data object
 FirebaseData fbdo;
 
@@ -43,12 +45,12 @@ String Device_7_Name = "Light7";
 String Device_8_Name = "Light8";
 String Device_9_Name = "Light9";
 String Device_10_Name = "Light10";
-String Device_11_Name = "Swicth1";
-String Device_12_Name = "Swicth2";
-String Device_13_Name = "Swicth3";
-String Device_14_Name = "Swicth4";
-String Device_15_Name = "Swicth5";
-String Device_16_Name = "Swicth6";
+String Device_11_Name = "Light11";
+String Device_12_Name = "Light12";
+String Device_13_Name = "Light13";
+String Device_14_Name = "Light14";
+String Device_15_Name = "Light15";
+String Device_16_Name = "Light16";
 
 void firstLightChanged(uint8_t brightness);
 void secondLightChanged(uint8_t brightness);
@@ -75,6 +77,15 @@ void sixteenLightChanged(uint8_t brightness);
 void setup(){
   Serial.begin(9600);
   conncection();
+  // Configure time with NTP server
+  configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
+
+  // Wait for time to be set
+  struct tm timeinfo;
+  if (!getLocalTime(&timeinfo)) {
+    Serial.println("Failed to obtain time");
+    return;
+  }
 
 
 }
@@ -127,12 +138,31 @@ void conncection() {
   Firebase.begin(&config, &auth);
   Firebase.reconnectWiFi(true);
 }
-void loop(){
 
+void updateLastSeen() {
+    struct tm timeinfo;
+    if (getLocalTime(&timeinfo)) {
+       time_t now = time(nullptr);
+        if(now) {
+          FirebaseJson updateData;
+          updateData.add("lastseen",String(now));
+          Firebase.RTDB.updateNode(&fbdo, "/",&updateData);
+        }
+    }
+
+}
+void loop(){
+ unsigned long currentMillis = millis();
   while (wifiMulti.run() != WL_CONNECTED){
     conncection();
   }
   if (Firebase.ready() && signupOK ){
+     if(currentMillis - previousMillis >= interval) {
+         previousMillis = currentMillis;
+          updateLastSeen();
+      }
+  
+
        if(Firebase.RTDB.getJSON(&fbdo, "/isUpdated")) {
           bool value = fbdo.to<bool>();
           if(value) {
