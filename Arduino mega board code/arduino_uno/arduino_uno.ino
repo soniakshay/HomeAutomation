@@ -1,10 +1,10 @@
 #include <ArduinoJson.h>
 #include <SoftwareSerial.h>
 
-const int controlPin[32] = {4, 5, 6, 7, 8, 9, 10,11,12,13,A0,A1,A2,A3,A4,A5, 
-                            22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37
+const int controlPin[32] = {4, 5, 6, 7, 8, 9, 10,11,12,A0,A1,A2,A3,A4,A5, 
+                            22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38
                             }; // define pins
-SoftwareSerial BTSerial(2, 3);   // RX | TX
+SoftwareSerial BTSerial(52, 54);   // RX | TX
 
 
 const int maxSize = 32; // Maximum size of the array
@@ -92,6 +92,7 @@ void setup() {
 const size_t JSON_BUFFER_SIZE = 2024;  // Adjust the buffer size as needed
 StaticJsonDocument<JSON_BUFFER_SIZE> jsonBuffer;
 void loop() {
+  
   // wifi serial 
     jsonBuffer.clear();
 

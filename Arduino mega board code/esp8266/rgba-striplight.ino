@@ -27,10 +27,10 @@ CRGB leds[NUM_LEDS];
 
 
 // Insert Firebase project API Key
-#define API_KEY "YOURAPIKEY"
+#define API_KEY "AIzaSyCIFO0Y0rsMry0mngIrtFb5xtJISUUX-kY"
 
 // Insert RTDB URLefine the RTDB URL */
-#define DATABASE_URL "esp8266-455eb-default-rtdb.firebaseio.com/ " 
+#define DATABASE_URL "esp8266-455eb-default-rtdb.firebaseio.com/"
 
 //Define Firebase Data object
 FirebaseData fbdo;

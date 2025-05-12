@@ -20,11 +20,11 @@ const unsigned long interval = 3000; // 30 seconds in milliseconds
 
 
 // Insert Firebase project API Key
-#define API_KEY "YOURKEY"
+#define API_KEY "AIzaSyCIFO0Y0rsMry0mngIrtFb5xtJISUUX-kY"
 
 // Insert RTDB URLefine the RTDB URL */
-#define DATABASE_URL "esp8266-455eb-default-rtdb.firebaseio.com/ " 
-//Define Firebase Data object
+#define DATABASE_URL "esp8266-455eb-default-rtdb.firebaseio.com/" 
+
 FirebaseData fbdo;
 
 FirebaseAuth auth;
@@ -92,10 +92,11 @@ void setup(){
 
 void conncection() {
   WiFi.persistent(false);
-  wifiMulti.addAP("WIFINAME", "WIFI_PASSWORD");
-  wifiMulti.addAP("WIFINAME", "WIFI_PASSWORD");
-  wifiMulti.addAP("WIFINAME", "WIFI_PASSWORD");
-  wifiMulti.addAP("WIFINAME", "WIFI_PASSWORD");
+  wifiMulti.addAP("Airtel_Akshay", "Akshu@8000");
+  wifiMulti.addAP("Akshay", "Akshu@8000");
+  wifiMulti.addAP("Akshay", "123456789");
+  wifiMulti.addAP("Kajal", "Akshu@8000");
+  wifiMulti.addAP("Kajal", "123456789");
       
   Serial.print("Connecting to Wi-Fi");
   while (wifiMulti.run() != WL_CONNECTED){

@@ -18,10 +18,10 @@
 #define DATA_PIN 4 // D2
 
 // Insert Firebase project API Key
-#define API_KEY "APIKEY"
+#define API_KEY "AIzaSyCIFO0Y0rsMry0mngIrtFb5xtJISUUX-kY"
 
 // Insert RTDB URLefine the RTDB URL */
-#define DATABASE_URL "DATABASEURL" 
+#define DATABASE_URL "esp8266-455eb-default-rtdb.firebaseio.com/"
 
 //Define Firebase Data object
 FirebaseData fbdo;
@@ -48,10 +48,11 @@ void setup(){
 void conncection() {
   pinMode(DATA_PIN, INPUT); 
   WiFi.persistent(false);
-  wifiMulti.addAP("WIFINAME", "PASSWORD");
-  wifiMulti.addAP("WIFINAME", "PASSWORD");
-  wifiMulti.addAP("WIFINAME", "PASSWORD");
-  wifiMulti.addAP("WIFINAME", "PASSWORD");
+   wifiMulti.addAP("Airtel_Akshay", "Akshu@8000");
+  wifiMulti.addAP("Akshay", "Akshu@8000");
+  wifiMulti.addAP("Akshay", "123456789");
+  wifiMulti.addAP("Kajal", "Akshu@8000");
+  wifiMulti.addAP("Kajal", "123456789");
       
   Serial.print("Connecting to Wi-Fi");
   while (wifiMulti.run() != WL_CONNECTED){

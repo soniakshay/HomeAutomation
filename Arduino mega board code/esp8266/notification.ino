@@ -15,7 +15,7 @@
 
 
 // Insert Firebase project API Key
-#define API_KEY "APIKEY"
+#define API_KEY "AIzaSyCIFO0Y0rsMry0mngIrtFb5xtJISUUX-kY"
 
 // Insert RTDB URLefine the RTDB URL */
 #define DATABASE_URL "esp8266-455eb-default-rtdb.firebaseio.com/" 
