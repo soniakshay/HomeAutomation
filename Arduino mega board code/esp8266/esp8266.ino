@@ -92,11 +92,13 @@ void setup(){
 
 void conncection() {
   WiFi.persistent(false);
-  wifiMulti.addAP("Airtel_Akshay", "Akshu@8000");
   wifiMulti.addAP("Akshay", "Akshu@8000");
-  wifiMulti.addAP("Akshay", "123456789");
   wifiMulti.addAP("Kajal", "Akshu@8000");
-  wifiMulti.addAP("Kajal", "123456789");
+  WiFi.persistent(false);
+  WiFi.mode(WIFI_STA);
+  WiFi.setSleepMode(WIFI_NONE_SLEEP);
+  WiFi.setAutoReconnect(true);
+  WiFi.setAutoReconnect(true);
       
   Serial.print("Connecting to Wi-Fi");
   while (wifiMulti.run() != WL_CONNECTED){
@@ -152,11 +154,19 @@ void updateLastSeen() {
     }
 
 }
+
+void checkWiFiReconnect() {
+  if (WiFi.status() != WL_CONNECTED) {
+    Serial.println("WiFi Lost! Reconnecting...");
+    wifiMulti.run();  // Try reconnect (non-blocking)
+    delay(2000);
+  }
+}
+
 void loop(){
  unsigned long currentMillis = millis();
-  while (wifiMulti.run() != WL_CONNECTED){
-    conncection();
-  }
+  checkWiFiReconnect();
+
   if (Firebase.ready() && signupOK ){
      if(currentMillis - previousMillis >= interval) {
          previousMillis = currentMillis;

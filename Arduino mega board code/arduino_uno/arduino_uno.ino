@@ -1,15 +1,26 @@
 #include <ArduinoJson.h>
 #include <SoftwareSerial.h>
+#include <avr/wdt.h>
+
+
 
 const int controlPin[32] = {4, 5, 6, 7, 8, 9, 10,11,12,A0,A1,A2,A3,A4,A5, 
                             22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38
                             }; // define pins
-SoftwareSerial BTSerial(52, 54);   // RX | TX
+SoftwareSerial BTSerial(52, 53);   // RX | TX
 
 
 const int maxSize = 32; // Maximum size of the array
 String arr[maxSize]; // Declare the array
 int arrSize = 0; // Current size of the array
+
+
+
+
+void megaReset() {
+  wdt_enable(WDTO_15MS);
+  while (1) {}   // Mega resets
+}
 
 
 
@@ -129,6 +140,11 @@ void loop() {
   // bluthtooth serial 
   if (BTSerial.available())   {
     String jsonStr1 = BTSerial.readStringUntil('\n');
+    if (jsonStr1 == "Reset") {
+      delay(200);
+      megaReset();
+      return;   // then reset Arduino Mega
+    }
     DeserializationError error = deserializeJson(jsonBuffer, jsonStr1);
     if (error) {
        Serial.print(F("deserializeJson() failed: "));
