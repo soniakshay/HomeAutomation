@@ -39,17 +39,42 @@ bool devicesRegistered = false; // guards against re-adding Espalexa devices on 
 
 ESP8266WiFiMulti wifiMulti;
 
-// One Alexa device per Firebase "/LightGroups" entry (e.g. "bedroom" ->
-// light5,light6,light7,light8), fetched at boot - so renaming a group or
-// changing its light list in the app takes effect on the next reboot
-// without touching this code.
-const int MAX_GROUPS = 8;
-String groupNames[MAX_GROUPS];
-String groupLightsCsv[MAX_GROUPS]; // e.g. "light5,light6,light7,light8"
-int groupCount = 0;
+String Device_1_Name = "Light1";
+String Device_2_Name = "Light2";
+String Device_3_Name = "Light3";
+String Device_4_Name = "Light4";
+String Device_5_Name = "Light5";
+String Device_6_Name = "Light6";
+String Device_7_Name = "Light7";
+String Device_8_Name = "Light8";
+String Device_9_Name = "Light9";
+String Device_10_Name = "Light10";
+String Device_11_Name = "Light11";
+String Device_12_Name = "Light12";
+String Device_13_Name = "Light13";
+String Device_14_Name = "Light14";
+String Device_15_Name = "Light15";
+String Device_16_Name = "Light16";
 
-void fetchLightGroups();
-void groupChanged(uint8_t slot, uint8_t brightness);
+void firstLightChanged(uint8_t brightness);
+void secondLightChanged(uint8_t brightness);
+void thirtdLightChanged(uint8_t brightness);
+void fourthLightChanged(uint8_t brightness);
+
+void fifthLightChanged(uint8_t brightness);
+void sixthLightChanged(uint8_t brightness);
+void sevenLightChanged(uint8_t brightness);
+void eightLightChanged(uint8_t brightness);
+
+void nineLightChanged(uint8_t brightness);
+void tenLightChanged(uint8_t brightness);
+void elevenLightChanged(uint8_t brightness);
+void twelveLightChanged(uint8_t brightness);
+
+void thirteenLightChanged(uint8_t brightness);
+void fourteenLightChanged(uint8_t brightness);
+void fifteenLightChanged(uint8_t brightness);
+void sixteenLightChanged(uint8_t brightness);
 
 void connectWiFi();
 void setupFirebaseAndDevices();
@@ -59,12 +84,12 @@ void setup(){
   Serial.begin(9600);
 
   // Register the known access points once
-  WiFi.mode(WIFI_STA);          // pure station mode - avoids AP+STA reconnect quirks
-  WiFi.setSleepMode(WIFI_NONE_SLEEP); // modem sleep is why this drops/misses reconnects when other devices don't
   WiFi.persistent(false);
   wifiMulti.addAP("Airtel_Akshay", "Akshu@8000");
   wifiMulti.addAP("Akshay", "Akshu@8000");
+  wifiMulti.addAP("Akshay", "123456789");
   wifiMulti.addAP("Kajal", "Akshu@8000");
+  wifiMulti.addAP("Kajal", "123456789");
 
   connectWiFi();          // blocks until WiFi is up
   setupFirebaseAndDevices(); // one-time: Firebase signup + Espalexa devices
@@ -115,74 +140,33 @@ void setupFirebaseAndDevices() {
   }
 
   if (signupOK && !devicesRegistered) {
-    fetchLightGroups();
-    if (groupCount > 0) {
-      for (int i = 0; i < groupCount; i++) {
-        espalexa.addDevice(groupNames[i], [i](uint8_t brightness) {
-          groupChanged(i, brightness);
-        });
-      }
-      espalexa.begin();
-      devicesRegistered = true;
-    } else {
-      Serial.println("LightGroups fetch failed or empty - will retry.");
-    }
+    espalexa.addDevice(Device_1_Name, firstLightChanged);
+    espalexa.addDevice(Device_2_Name, secondLightChanged);
+    espalexa.addDevice(Device_3_Name, thirtdLightChanged);
+    espalexa.addDevice(Device_4_Name, fourthLightChanged);
+
+    espalexa.addDevice(Device_5_Name, fifthLightChanged);
+    espalexa.addDevice(Device_6_Name, sixthLightChanged);
+    espalexa.addDevice(Device_7_Name, sevenLightChanged);
+    espalexa.addDevice(Device_8_Name, eightLightChanged);
+
+    espalexa.addDevice(Device_9_Name, nineLightChanged);
+    espalexa.addDevice(Device_10_Name, tenLightChanged);
+    espalexa.addDevice(Device_11_Name, elevenLightChanged);
+    espalexa.addDevice(Device_12_Name, twelveLightChanged);
+
+    espalexa.addDevice(Device_13_Name, thirteenLightChanged);
+    espalexa.addDevice(Device_14_Name, fourteenLightChanged);
+    espalexa.addDevice(Device_15_Name, fifteenLightChanged);
+    espalexa.addDevice(Device_16_Name, sixteenLightChanged);
+
+    espalexa.begin();
+    devicesRegistered = true;
   }
 
   config.token_status_callback = tokenStatusCallback;
   Firebase.begin(&config, &auth);
   Firebase.reconnectWiFi(true);
-}
-
-// Walks "/LightGroups" (e.g. {"bedroom":{"light5":"light5","light6":"light6"}})
-// into groupNames[]/groupLightsCsv[]. FirebaseJson's iterator is a flat,
-// depth-first walk: an OBJECT entry starts a new group, the STRING leaves
-// that follow it (until the next OBJECT) are that group's light keys - which
-// is exactly this schema's 2-level shape (group -> light leaves), so no
-// generic tree/path tracking is needed.
-void fetchLightGroups() {
-  if (!Firebase.RTDB.getJSON(&fbdo, "/LightGroups")) {
-    Serial.println(fbdo.errorReason().c_str());
-    return;
-  }
-  FirebaseJson &json = fbdo.jsonObject();
-  size_t len = json.iteratorBegin();
-  groupCount = 0;
-  for (size_t i = 0; i < len; i++) {
-    int type;
-    String key, value;
-    json.iteratorGet(i, type, key, value);
-    if (type == FirebaseJson::JSON_OBJECT) {
-      if (groupCount >= MAX_GROUPS) break;
-      groupNames[groupCount] = key;
-      groupLightsCsv[groupCount] = "";
-      groupCount++;
-    } else if (groupCount > 0) {
-      String &csv = groupLightsCsv[groupCount - 1];
-      if (csv.length()) csv += ",";
-      csv += key; // key == value == light1/light5/... in this schema
-    }
-  }
-  json.iteratorEnd();
-}
-
-// Shared handler for every group device: flips every light in that group's
-// CSV list ON/OFF in one Firebase update, same as the old per-light handlers.
-void groupChanged(uint8_t slot, uint8_t brightness) {
-  String state = brightness > 0 ? "ON" : "OFF";
-  FirebaseJson updateData;
-  updateData.add("isUpdated", true);
-
-  String csv = groupLightsCsv[slot];
-  int start = 0;
-  while (start < (int)csv.length()) {
-    int comma = csv.indexOf(',', start);
-    if (comma == -1) comma = csv.length();
-    String lightKey = csv.substring(start, comma);
-    updateData.add("lights/" + lightKey, state);
-    start = comma + 1;
-  }
-  Firebase.RTDB.updateNode(&fbdo, "/", &updateData);
 }
 
 void updateLastSeen() {
@@ -263,9 +247,9 @@ void loop(){
   // retry) never runs again either. So retry setup here on a timer until
   // it succeeds, without needing a manual power-cycle once internet is
   // back.
-  if ((!signupOK || !devicesRegistered) && (currentMillis - lastSignupAttemptMillis >= signupRetryInterval)) {
+  if (!signupOK && (currentMillis - lastSignupAttemptMillis >= signupRetryInterval)) {
     lastSignupAttemptMillis = currentMillis;
-    Serial.println("Firebase not signed up / groups not loaded yet - retrying...");
+    Serial.println("Firebase not signed up yet - retrying...");
     setupFirebaseAndDevices();
   }
 
@@ -294,3 +278,241 @@ void loop(){
   espalexa.loop();
   delay(1);
 }
+
+void firstLightChanged(uint8_t brightness) {
+  FirebaseJson updateData;
+  if(brightness == 255)
+  {
+      updateData.add("isUpdated",true);
+      updateData.add("lights/light1","ON");
+      Firebase.RTDB.updateNode(&fbdo, "/",&updateData);
+  }  else {
+      updateData.add("isUpdated",true);
+      updateData.add("lights/light1","OFF");
+      Firebase.RTDB.updateNode(&fbdo, "/",&updateData);
+  }
+ }
+
+ void secondLightChanged(uint8_t brightness) {
+ FirebaseJson updateData;
+  if(brightness == 255)
+  {
+      updateData.add("isUpdated",true);
+      updateData.add("lights/light2","ON");
+      Firebase.RTDB.updateNode(&fbdo, "/",&updateData);
+  }  else {
+      updateData.add("isUpdated",true);
+      updateData.add("lights/light2","OFF");
+      Firebase.RTDB.updateNode(&fbdo, "/",&updateData);
+  }
+ }
+
+void thirtdLightChanged(uint8_t brightness)
+{
+  FirebaseJson updateData;
+  if(brightness == 255)
+  {
+      updateData.add("isUpdated",true);
+      updateData.add("lights/light3","ON");
+      Firebase.RTDB.updateNode(&fbdo, "/",&updateData);
+  }  else {
+      updateData.add("isUpdated",true);
+      updateData.add("lights/light3","OFF");
+      Firebase.RTDB.updateNode(&fbdo, "/",&updateData);
+  }
+ }
+
+void fourthLightChanged(uint8_t brightness)
+{
+FirebaseJson updateData;
+  if(brightness == 255)
+  {
+      updateData.add("isUpdated",true);
+      updateData.add("lights/light4","ON");
+      Firebase.RTDB.updateNode(&fbdo, "/",&updateData);
+  }  else {
+      updateData.add("isUpdated",true);
+      updateData.add("lights/light4","OFF");
+      Firebase.RTDB.updateNode(&fbdo, "/",&updateData);
+  }
+ }
+
+void fifthLightChanged(uint8_t brightness)
+{
+FirebaseJson updateData;
+  if(brightness == 255)
+  {
+      updateData.add("isUpdated",true);
+      updateData.add("lights/light5","ON");
+      Firebase.RTDB.updateNode(&fbdo, "/",&updateData);
+  }  else {
+      updateData.add("isUpdated",true);
+      updateData.add("lights/light5","OFF");
+      Firebase.RTDB.updateNode(&fbdo, "/",&updateData);
+  }
+ }
+
+void sixthLightChanged(uint8_t brightness)
+{
+  FirebaseJson updateData;
+  if(brightness == 255)
+  {
+      updateData.add("isUpdated",true);
+      updateData.add("lights/light6","ON");
+      Firebase.RTDB.updateNode(&fbdo, "/",&updateData);
+  }  else {
+      updateData.add("isUpdated",true);
+      updateData.add("lights/light6","OFF");
+      Firebase.RTDB.updateNode(&fbdo, "/",&updateData);
+  }
+ }
+
+void sevenLightChanged(uint8_t brightness)
+{
+  FirebaseJson updateData;
+  if(brightness == 255)
+  {
+      updateData.add("isUpdated",true);
+      updateData.add("lights/light7","ON");
+      Firebase.RTDB.updateNode(&fbdo, "/",&updateData);
+  }  else {
+      updateData.add("isUpdated",true);
+      updateData.add("lights/light7","OFF");
+      Firebase.RTDB.updateNode(&fbdo, "/",&updateData);
+  }
+ }
+
+void eightLightChanged(uint8_t brightness)
+{
+FirebaseJson updateData;
+  if(brightness == 255)
+  {
+      updateData.add("isUpdated",true);
+      updateData.add("lights/light8","ON");
+      Firebase.RTDB.updateNode(&fbdo, "/",&updateData);
+  }  else {
+      updateData.add("isUpdated",true);
+      updateData.add("lights/light8","OFF");
+      Firebase.RTDB.updateNode(&fbdo, "/",&updateData);
+  }
+ }
+
+ void nineLightChanged(uint8_t brightness)
+{
+  FirebaseJson updateData;
+  if(brightness == 255)
+  {
+      updateData.add("isUpdated",true);
+      updateData.add("lights/light9","ON");
+      Firebase.RTDB.updateNode(&fbdo, "/",&updateData);
+  }  else {
+      updateData.add("isUpdated",true);
+      updateData.add("lights/light9","OFF");
+      Firebase.RTDB.updateNode(&fbdo, "/",&updateData);
+  }
+ }
+
+void tenLightChanged(uint8_t brightness)
+{
+FirebaseJson updateData;
+  if(brightness == 255)
+  {
+      updateData.add("isUpdated",true);
+      updateData.add("lights/light10","ON");
+      Firebase.RTDB.updateNode(&fbdo, "/",&updateData);
+  }  else {
+      updateData.add("isUpdated",true);
+      updateData.add("lights/light10","OFF");
+      Firebase.RTDB.updateNode(&fbdo, "/",&updateData);
+  }
+ }
+
+void elevenLightChanged(uint8_t brightness)
+{
+  FirebaseJson updateData;
+  if(brightness == 255)
+  {
+      updateData.add("isUpdated",true);
+      updateData.add("lights/light11","ON");
+      Firebase.RTDB.updateNode(&fbdo, "/",&updateData);
+  }  else {
+      updateData.add("isUpdated",true);
+      updateData.add("lights/light11","OFF");
+      Firebase.RTDB.updateNode(&fbdo, "/",&updateData);
+  }
+ }
+
+void twelveLightChanged(uint8_t brightness)
+{
+FirebaseJson updateData;
+  if(brightness == 255)
+  {
+      updateData.add("isUpdated",true);
+      updateData.add("lights/light12","ON");
+      Firebase.RTDB.updateNode(&fbdo, "/",&updateData);
+  }  else {
+      updateData.add("isUpdated",true);
+      updateData.add("lights/light12","OFF");
+      Firebase.RTDB.updateNode(&fbdo, "/",&updateData);
+  }
+ }
+
+void thirteenLightChanged(uint8_t brightness)
+{
+FirebaseJson updateData;
+  if(brightness == 255)
+  {
+      updateData.add("isUpdated",true);
+      updateData.add("lights/light13","ON");
+      Firebase.RTDB.updateNode(&fbdo, "/",&updateData);
+  }  else {
+      updateData.add("isUpdated",true);
+      updateData.add("lights/light13","OFF");
+      Firebase.RTDB.updateNode(&fbdo, "/",&updateData);
+  }
+ }
+
+void fourteenLightChanged(uint8_t brightness)
+{
+FirebaseJson updateData;
+  if(brightness == 255)
+  {
+      updateData.add("isUpdated",true);
+      updateData.add("lights/light14","ON");
+      Firebase.RTDB.updateNode(&fbdo, "/",&updateData);
+  }  else {
+      updateData.add("isUpdated",true);
+      updateData.add("lights/light14","OFF");
+      Firebase.RTDB.updateNode(&fbdo, "/",&updateData);
+  }
+ }
+
+void fifteenLightChanged(uint8_t brightness)
+{
+FirebaseJson updateData;
+  if(brightness == 255)
+  {
+      updateData.add("isUpdated",true);
+      updateData.add("lights/light15","ON");
+      Firebase.RTDB.updateNode(&fbdo, "/",&updateData);
+  }  else {
+      updateData.add("isUpdated",true);
+      updateData.add("lights/light15","OFF");
+      Firebase.RTDB.updateNode(&fbdo, "/",&updateData);
+  }
+ }
+
+void sixteenLightChanged(uint8_t brightness)
+{
+FirebaseJson updateData;
+  if(brightness == 255)
+  {
+      updateData.add("isUpdated",true);
+      updateData.add("lights/light16","ON");
+      Firebase.RTDB.updateNode(&fbdo, "/",&updateData);
+  }  else {
+      updateData.add("isUpdated",true);
+      updateData.add("lights/light16","OFF");
+      Firebase.RTDB.updateNode(&fbdo, "/",&updateData);
+  }
+ }
