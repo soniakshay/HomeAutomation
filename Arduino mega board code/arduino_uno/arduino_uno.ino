@@ -15,14 +15,12 @@ String arr[maxSize]; // Declare the array
 int arrSize = 0; // Current size of the array
 
 
-
-
+// Local self-reset of the Mega itself (triggered by the plain-text
+// Bluetooth command "Reset").
 void megaReset() {
   wdt_enable(WDTO_15MS);
   while (1) {}   // Mega resets
 }
-
-
 
 
 int getArrayLength(String arr[]) {
@@ -104,11 +102,13 @@ const size_t JSON_BUFFER_SIZE = 2024;  // Adjust the buffer size as needed
 StaticJsonDocument<JSON_BUFFER_SIZE> jsonBuffer;
 void loop() {
   
-  // wifi serial 
+  // wifi serial (from ESP8266)
     jsonBuffer.clear();
 
   if (Serial.available()) {
     String jsonStr1 = Serial.readStringUntil('\n');
+    jsonStr1.trim();
+    if (jsonStr1.length() == 0 || jsonStr1[0] != '{') return;  // ignore ESP debug text
     DeserializationError error = deserializeJson(jsonBuffer, jsonStr1);
      if (error) {
         Serial.print(F("deserializeJson() failed: "));
@@ -118,33 +118,51 @@ void loop() {
     for(int i=0; i < maxSize; i++)
     {
 
-      
       String indexString = String(i + 1); // Adding 1 to i and converting it to a String
-      String light = jsonBuffer["light" + indexString]; // 
-       if(isValueExists("light" + indexString) ==  false) {
-        if(light == "ON") {
-          digitalWrite(controlPin[i],LOW);
+      String key = "light" + indexString;
+      String light = jsonBuffer[key];
+
+      // Only the ON write is guarded against re-doing work that Bluetooth
+      // already applied. OFF must never be blocked here, or a light that
+      // was turned on via Bluetooth could never be turned off from
+      // Alexa/Firebase again.
+      if (light == "ON") {
+        if (!isValueExists(key)) {
+          digitalWrite(controlPin[i], LOW);
         }
-       if(light == "OFF") {
-          digitalWrite(controlPin[i],HIGH);
-       }
-
+      } else if (light == "OFF") {
+        digitalWrite(controlPin[i], HIGH);
       }
-  
     }
-
-
   }
 
 
-  // bluthtooth serial 
+  // bluetooth serial
   if (BTSerial.available())   {
     String jsonStr1 = BTSerial.readStringUntil('\n');
+    jsonStr1.trim();
+
+    // Local self-reset of the Mega (existing behavior, unchanged).
     if (jsonStr1 == "Reset") {
       delay(200);
       megaReset();
-      return;   // then reset Arduino Mega
+      return;
     }
+
+    // Remote reset of the ESP8266 - forward the command over hardware
+    // Serial so the ESP8266 can reboot itself.
+    if (jsonStr1 == "RESET") {
+      Serial.println("RESET");
+      return;
+    }
+
+    // WiFi credentials, e.g. "WIFI:mySSID,myPassword" - forward as-is to
+    // the ESP8266 so it can add/connect to that network.
+    if (jsonStr1.startsWith("WIFI:")) {
+      Serial.println(jsonStr1);
+      return;
+    }
+
     DeserializationError error = deserializeJson(jsonBuffer, jsonStr1);
     if (error) {
        Serial.print(F("deserializeJson() failed: "));
@@ -154,14 +172,16 @@ void loop() {
     for(int i=0; i<maxSize; i++)
     {
       String indexString = String(i + 1); // Adding 1 to i and converting it to a String
-      String light = jsonBuffer["light" + indexString]; // 
+      String key = "light" + indexString;
+      String light = jsonBuffer[key];
+
       if(light == "ON") {
         digitalWrite(controlPin[i],LOW);
-        arrayPushUnique("light" + indexString);
+        arrayPushUnique(key);
       }
      if(light == "OFF") {
         digitalWrite(controlPin[i],HIGH);
-        arrayRemove("light" + indexString);
+        arrayRemove(key);
      }
   
     }
