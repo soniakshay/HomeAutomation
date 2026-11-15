@@ -7,14 +7,9 @@
 #include <FastLED.h>
 #include <ArduinoJson.h>
 
-// // How many leds in your strip?
- #define NUM_LEDS 900
 
-// // For led chips like WS2812, which have a data line, ground, and power, you just
-// // need to define DATA_PIN.  For led chipsets that are SPI based (four wires - data, clock,
-// // ground, and power), like the LPD8806 define both DATA_PIN and CLOCK_PIN
-// // Clock pin only needed for SPI based chipsets when not using hardware SPI
- #define DATA_PIN 14 // D5 pin
+#define NUM_LEDS 600
+#define DATA_PIN 5  // D1 GPIO5
 // #define CLOCK_PIN 13
 
 // // Define the array of leds
@@ -43,12 +38,14 @@ bool signupOK = false;
 ESP8266WiFiMulti wifiMulti;
 
 #define STAR_LENGTH 20     // Length of the shooting star (head + tail)
-#define STAR_SPEED  5  
+#define STAR_SPEED  7  
 
 
 void setup(){
   Serial.begin(9600);
-  FastLED.addLeds<WS2811, DATA_PIN, GRB>(leds, NUM_LEDS);
+
+  FastLED.addLeds<WS2812, DATA_PIN, GRB>(leds, NUM_LEDS); 
+  FastLED.setBrightness(100);
   for(int i=0;i<NUM_LEDS;i++) {
     leds[i] = CRGB(96,96,96);
     FastLED.show();
@@ -62,10 +59,8 @@ void setup(){
 void conncection() {
  
   WiFi.persistent(false);
-  wifiMulti.addAP("WIFINAME", "PASSWORD");
-  wifiMulti.addAP("WIFINAME", "PASSWORD");
-  wifiMulti.addAP("WIFINAME", "PASSWORD");
-  wifiMulti.addAP("WIFINAME", "PASSWORD");
+  wifiMulti.addAP("Kajal", "Akshu@8000");
+  wifiMulti.addAP("Akshu", "Akshu@8000");
       
   Serial.print("Connecting to Wi-Fi");
   while (wifiMulti.run() != WL_CONNECTED){
@@ -122,10 +117,10 @@ void animateShootingStar(int startPos, CRGB color, int length, int speed) {
 void waterFlowEffect(uint8_t red, uint8_t green, uint8_t blue,uint8_t opacity) {
   
     for(int i=0;i<NUM_LEDS;i++) {
-    leds[i] = CRGB(red,green,blue);
-    FastLED.show();
-    FastLED.setBrightness(opacity);
-    delay(10);
+      leds[i] = CRGB(red,green,blue);
+      FastLED.show();
+      FastLED.setBrightness(opacity);
+      delay(10);
   }
                 
 }
@@ -265,4 +260,3 @@ void loop(){
   }
   delay(1);
 }
-

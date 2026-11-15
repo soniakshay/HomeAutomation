@@ -1,178 +1,670 @@
+
 #ifdef ARDUINO_ARCH_ESP32
 #include <WiFi.h>
 #else
+#include <ESP8266WiFi.h>
 #include <ESP8266WiFiMulti.h>
 #endif
+
 #include <Firebase_ESP_Client.h>
 #include <FastLED.h>
 #include <ArduinoJson.h>
+#include <time.h>
 
-// // How many leds in your strip?
- #define NUM_LEDS 300
+// =====================================================
+// LED SETTINGS
+// =====================================================
 
-// // For led chips like WS2812, which have a data line, ground, and power, you just
-// // need to define DATA_PIN.  For led chipsets that are SPI based (four wires - data, clock,
-// // ground, and power), like the LPD8806 define both DATA_PIN and CLOCK_PIN
-// // Clock pin only needed for SPI based chipsets when not using hardware SPI
- #define DATA_PIN 14 // D5 pin
-// #define CLOCK_PIN 13
+#define NUM_LEDS 300
+#define DATA_PIN 14   // ESP8266 D5 = GPIO14
 
-// // Define the array of leds
 CRGB leds[NUM_LEDS];
 
-//Provide the token generation process info.
-#include "addons/TokenHelper.h"
-//Provide the RTDB payload printing info and other helper functions.
-#include "addons/RTDBHelper.h"
+// Shooting Star Settings
+#define STAR_LENGTH 20
+#define STAR_SPEED  5
 
 
-// Insert Firebase project API Key
+// =====================================================
+// NTP TIME SETTINGS
+// =====================================================
+
+const char* ntpServer = "pool.ntp.org";
+
+// India GMT +5:30
+const long gmtOffset_sec = 19800;
+const int daylightOffset_sec = 0;
+
+
+// =====================================================
+// FIREBASE
+// =====================================================
+
+// Firebase API Key
 #define API_KEY "AIzaSyCIFO0Y0rsMry0mngIrtFb5xtJISUUX-kY"
 
-// Insert RTDB URLefine the RTDB URL */
+// Firebase RTDB URL
 #define DATABASE_URL "esp8266-455eb-default-rtdb.firebaseio.com/"
 
-//Define Firebase Data object
+// Firebase Objects
 FirebaseData fbdo;
-
 FirebaseAuth auth;
 FirebaseConfig config;
 
 bool signupOK = false;
 
+
+// =====================================================
+// WIFI
+// =====================================================
+
+#ifdef ARDUINO_ARCH_ESP32
+#else
 ESP8266WiFiMulti wifiMulti;
-
-#define STAR_LENGTH 20     // Length of the shooting star (head + tail)
-#define STAR_SPEED  5  
+#endif
 
 
-void setup(){
-  Serial.begin(9600);
-  conncection();
+// =====================================================
+// FUNCTION DECLARATIONS
+// =====================================================
 
- FastLED.addLeds<WS2811, DATA_PIN, GRB>(leds, NUM_LEDS);
-}
+void conncection();
+void updateLastSeen();
 
-void conncection() {
-  WiFi.persistent(false);
-  wifiMulti.addAP("Akshay", "Akshu@8000");
-  wifiMulti.addAP("Akshay", "123456789");
-  wifiMulti.addAP("Kajal", "Akshu@8000");
-  wifiMulti.addAP("Kajal", "123456789");
-      
-  Serial.print("Connecting to Wi-Fi");
-  while (wifiMulti.run() != WL_CONNECTED){
-    Serial.print(".");
-    delay(1000);
-  }
-  Serial.print("Connected with IP: ");
-  config.api_key = API_KEY;
-  config.database_url = DATABASE_URL;
-  if (Firebase.signUp(&config, &auth, "", "")){
-    Serial.println("Firebase Connected");
-    signupOK = true;
-  
-  }
-  else{
-    Serial.printf("%s\n", config.signer.signupError.message.c_str());
-  }
+void animateShootingStar(
+    int startPos,
+    CRGB color,
+    int length,
+    int speed
+);
 
-  config.token_status_callback = tokenStatusCallback; 
-  Firebase.begin(&config, &auth);
-  Firebase.reconnectWiFi(true);
-}
+void waterFlowEffect(
+    uint8_t red,
+    uint8_t green,
+    uint8_t blue,
+    uint8_t opacity
+);
 
 
-// Shooting star function
-void animateShootingStar(int startPos, CRGB color, int length, int speed) {
-    // Move the shooting star from the start position to the end of the strip
-    for (int i = startPos - length; i <= NUM_LEDS; i++) {
-        // Clear the strip
-        FastLED.clear();
+// =====================================================
+// SETUP
+// =====================================================
 
-        // Draw the shooting star
-        for (int j = 0; j < length; j++) {
-            int pos = i + j;
-            if (pos >= 0 && pos < NUM_LEDS) {
-                // Calculate brightness based on position in the shooting star
-                int brightness = map(j, 0, length - 1, 255, 0);
-                // Set the color using the calculated brightness and provided color
-                CRGB adjustedColor = color;
-                adjustedColor.fadeToBlackBy(255 - brightness);
-                leds[pos] = adjustedColor;
-            }
+void setup()
+{
+    Serial.begin(9600);
+
+    // LED Setup
+    FastLED.addLeds<WS2811, DATA_PIN, GRB>(
+        leds,
+        NUM_LEDS
+    );
+
+    FastLED.setBrightness(255);
+
+    FastLED.clear();
+    FastLED.show();
+
+
+    // Connect WiFi and Firebase
+    conncection();
+
+
+    // NTP Time Setup
+    configTime(
+        gmtOffset_sec,
+        daylightOffset_sec,
+        ntpServer
+    );
+
+    Serial.println("Waiting for NTP time...");
+
+    struct tm timeinfo;
+
+    unsigned long startTime = millis();
+
+    while (!getLocalTime(&timeinfo))
+    {
+        Serial.print(".");
+
+        delay(500);
+
+        // Don't wait forever
+        if (millis() - startTime > 10000)
+        {
+            Serial.println();
+            Serial.println("Failed to obtain time");
+            break;
         }
+    }
 
-        // Show the LEDs
-        FastLED.show();
+    Serial.println();
+    Serial.println("Setup Complete");
+}
 
-        // Delay to control the speed of the shooting star
-        delay(50 / speed);
+
+// =====================================================
+// WIFI + FIREBASE CONNECTION
+// =====================================================
+
+void conncection()
+{
+    WiFi.persistent(false);
+
+#ifdef ARDUINO_ARCH_ESP32
+
+    WiFi.mode(WIFI_STA);
+
+    WiFi.begin(
+        "Akshay",
+        "Akshu@8000"
+    );
+
+#else
+
+    wifiMulti.addAP(
+        "Akshay",
+        "Akshu@8000"
+    );
+
+    wifiMulti.addAP(
+        "Kajal",
+        "Akshu@8000"
+    );
+
+    WiFi.mode(WIFI_STA);
+
+    WiFi.setSleepMode(WIFI_NONE_SLEEP);
+
+#endif
+
+    WiFi.setAutoReconnect(true);
+
+
+    Serial.print("Connecting to WiFi");
+
+#ifdef ARDUINO_ARCH_ESP32
+
+    while (WiFi.status() != WL_CONNECTED)
+    {
+        Serial.print(".");
+        delay(1000);
+    }
+
+#else
+
+    while (wifiMulti.run() != WL_CONNECTED)
+    {
+        Serial.print(".");
+        delay(1000);
+    }
+
+#endif
+
+
+    Serial.println();
+
+    Serial.print("Connected with IP: ");
+
+    Serial.println(
+        WiFi.localIP()
+    );
+
+
+    // Firebase Config
+    config.api_key = API_KEY;
+
+    config.database_url = DATABASE_URL;
+
+    config.token_status_callback =
+        tokenStatusCallback;
+
+
+    // Anonymous Firebase Login
+    if (
+        Firebase.signUp(
+            &config,
+            &auth,
+            "",
+            ""
+        )
+    )
+    {
+        Serial.println(
+            "Firebase Connected"
+        );
+
+        signupOK = true;
+    }
+    else
+    {
+        Serial.printf(
+            "Firebase Signup Error: %s\n",
+            config.signer
+                .signupError
+                .message
+                .c_str()
+        );
+    }
+
+
+    Firebase.begin(
+        &config,
+        &auth
+    );
+
+    Firebase.reconnectWiFi(true);
+}
+
+
+// =====================================================
+// UPDATE LAST SEEN
+// =====================================================
+
+void updateLastSeen()
+{
+    time_t now = time(nullptr);
+
+    if (now > 100000)
+    {
+        FirebaseJson updateData;
+
+        updateData.add(
+            "lastseen",
+            String(now)
+        );
+
+        if (
+            Firebase.RTDB.updateNode(
+                &fbdo,
+                "/",
+                &updateData
+            )
+        )
+        {
+            Serial.println(
+                "Last seen updated"
+            );
+        }
+        else
+        {
+            Serial.println(
+                fbdo.errorReason()
+            );
+        }
     }
 }
 
 
-void waterFlowEffect(uint8_t red, uint8_t green, uint8_t blue,uint8_t opacity) {
-  
-    for(int i=0;i<NUM_LEDS;i++) {
-    leds[i] = CRGB(red,green,blue);
-    FastLED.show();
-    FastLED.setBrightness(opacity);
-    delay(10);
-  }
-                
-}
+// =====================================================
+// SHOOTING STAR EFFECT
+// =====================================================
 
-void loop(){
+void animateShootingStar(
+    int startPos,
+    CRGB color,
+    int length,
+    int speed
+)
+{
+    if (speed <= 0)
+    {
+        speed = 1;
+    }
 
-  while (wifiMulti.run() != WL_CONNECTED){
-    conncection();
-  }
-  if (Firebase.ready() && signupOK ){
-       if(Firebase.RTDB.getJSON(&fbdo, "/isStripLightUpdated")) {
-          bool value = fbdo.to<bool>();
-          if(value) {
-            FirebaseJson updateData;
-            if(Firebase.RTDB.getJSON(&fbdo, "/striplight"))  {
-               
-                  String jsonStr = fbdo.to<FirebaseJson>().raw();
-                  StaticJsonDocument<200> doc;
-                  DeserializationError error = deserializeJson(doc, jsonStr);
-                  if (error) {
-                      Serial.print(F("deserializeJson() failed: "));
-                      Serial.println(error.c_str());
-                      return;
-                  }
-                
-                
-                 FastLED.clear();
-                
 
-                uint8_t red =  doc["red"];
-                uint8_t green =  doc["green"];
-                uint8_t blue  = doc["blue"];
-                uint8_t opacity  = doc["opacity"];
-                String effect  =  doc["effect"];
-                if(effect == "shootingstar") {
-                  int startPosition = 0;
-                  CRGB color = CRGB(red, green, blue); // Red color, adjust values as needed
-                  animateShootingStar(startPosition, color, STAR_LENGTH, STAR_SPEED);
-                } else {
-                  waterFlowEffect(red,green,blue,opacity);
-                  updateData.add("/isStripLightUpdated",false);
+    for (
+        int i = startPos - length;
+        i <= NUM_LEDS + length;
+        i++
+    )
+    {
+        FastLED.clear();
 
-                }
-              
 
-              Firebase.RTDB.updateNode(&fbdo, "/",&updateData);
-            } else {
-             Serial.println(fbdo.errorReason().c_str());
-             } 
-          }
+        for (
+            int j = 0;
+            j < length;
+            j++
+        )
+        {
+            int pos = i + j;
 
+
+            if (
+                pos >= 0 &&
+                pos < NUM_LEDS
+            )
+            {
+                int brightness =
+                    map(
+                        j,
+                        0,
+                        length - 1,
+                        255,
+                        0
+                    );
+
+
+                CRGB adjustedColor = color;
+
+                adjustedColor.fadeToBlackBy(
+                    255 - brightness
+                );
+
+
+                leds[pos] =
+                    adjustedColor;
+            }
         }
-    Serial.flush();
 
-  }
-  delay(1);
+
+        FastLED.show();
+
+
+        delay(
+            max(
+                1,
+                50 / speed
+            )
+        );
+    }
+
+
+    FastLED.clear();
+    FastLED.show();
 }
+
+
+// =====================================================
+// WATER FLOW EFFECT
+// =====================================================
+
+void waterFlowEffect(
+    uint8_t red,
+    uint8_t green,
+    uint8_t blue,
+    uint8_t opacity
+)
+{
+    // Set brightness before show()
+    FastLED.setBrightness(
+        opacity
+    );
+
+
+    for (
+        int i = 0;
+        i < NUM_LEDS;
+        i++
+    )
+    {
+        leds[i] =
+            CRGB(
+                red,
+                green,
+                blue
+            );
+
+
+        FastLED.show();
+
+        delay(10);
+    }
+}
+
+
+// =====================================================
+// MAIN LOOP
+// =====================================================
+
+void loop()
+{
+
+    // ================================================
+    // WIFI RECONNECT
+    // ================================================
+
+#ifdef ARDUINO_ARCH_ESP32
+
+    if (
+        WiFi.status() != WL_CONNECTED
+    )
+    {
+        Serial.println(
+            "WiFi disconnected. Reconnecting..."
+        );
+
+        WiFi.reconnect();
+
+        delay(1000);
+
+        return;
+    }
+
+#else
+
+    if (
+        wifiMulti.run() != WL_CONNECTED
+    )
+    {
+        Serial.println(
+            "WiFi disconnected. Reconnecting..."
+        );
+
+        delay(1000);
+
+        return;
+    }
+
+#endif
+
+
+
+    // ================================================
+    // FIREBASE
+    // ================================================
+
+    if (
+        Firebase.ready() &&
+        signupOK
+    )
+    {
+
+        // Check update flag
+        if (
+            Firebase.RTDB.getBool(
+                &fbdo,
+                "/isStripLightUpdated"
+            )
+        )
+        {
+
+            bool value =
+                fbdo.boolData();
+
+
+            if (value)
+            {
+
+                // Get Strip Light JSON
+                if (
+                    Firebase.RTDB.getJSON(
+                        &fbdo,
+                        "/striplight"
+                    )
+                )
+                {
+
+                    String jsonStr =
+                        fbdo
+                        .to<FirebaseJson>()
+                        .raw();
+
+
+                    StaticJsonDocument<512>
+                        doc;
+
+
+                    DeserializationError error =
+                        deserializeJson(
+                            doc,
+                            jsonStr
+                        );
+
+
+                    if (error)
+                    {
+                        Serial.print(
+                            "deserializeJson() failed: "
+                        );
+
+                        Serial.println(
+                            error.c_str()
+                        );
+
+                        delay(100);
+
+                        return;
+                    }
+
+
+                    // Read Values
+                    uint8_t red =
+                        doc["red"] | 0;
+
+                    uint8_t green =
+                        doc["green"] | 0;
+
+                    uint8_t blue =
+                        doc["blue"] | 0;
+
+                    uint8_t opacity =
+                        doc["opacity"] | 255;
+
+                    String effect =
+                        doc["effect"]
+                        | "waterflow";
+
+
+                    Serial.println(
+                        "LED Update Received"
+                    );
+
+
+                    Serial.print("Effect: ");
+
+                    Serial.println(
+                        effect
+                    );
+
+
+                    // Clear old LEDs
+                    FastLED.clear();
+
+                    FastLED.show();
+
+
+                    // ====================================
+                    // SHOOTING STAR
+                    // ====================================
+
+                    if (
+                        effect ==
+                        "shootingstar"
+                    )
+                    {
+
+                        CRGB color(
+                            red,
+                            green,
+                            blue
+                        );
+
+
+                        animateShootingStar(
+                            0,
+                            color,
+                            STAR_LENGTH,
+                            STAR_SPEED
+                        );
+                    }
+
+
+                    // ====================================
+                    // NORMAL / WATER FLOW
+                    // ====================================
+
+                    else
+                    {
+
+                        waterFlowEffect(
+                            red,
+                            green,
+                            blue,
+                            opacity
+                        );
+                    }
+
+
+                    // ====================================
+                    // IMPORTANT:
+                    // RESET FIREBASE FLAG
+                    // FOR ALL EFFECTS
+                    // ====================================
+
+                    if (
+                        Firebase.RTDB.setBool(
+                            &fbdo,
+                            "/isStripLightUpdated",
+                            false
+                        )
+                    )
+                    {
+                        Serial.println(
+                            "Update flag reset"
+                        );
+                    }
+                    else
+                    {
+                        Serial.println(
+                            "Failed to reset flag:"
+                        );
+
+                        Serial.println(
+                            fbdo.errorReason()
+                        );
+                    }
+                }
+                else
+                {
+
+                    Serial.println(
+                        "Failed to get striplight data:"
+                    );
+
+                    Serial.println(
+                        fbdo.errorReason()
+                    );
+                }
+            }
+        }
+        else
+        {
+
+            // Only print actual Firebase errors
+            // Uncomment for debugging
+
+            /*
+            Serial.println(
+                fbdo.errorReason()
+            );
+            */
+        }
+    }
+
+
+    // Small delay for ESP8266 watchdog
+    delay(1);
+}
+
