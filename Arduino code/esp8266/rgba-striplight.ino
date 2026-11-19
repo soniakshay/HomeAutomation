@@ -200,8 +200,84 @@ void sweepAnimation2(uint8_t red, uint8_t green, uint8_t blue,uint8_t opacity) {
 
 }
 
-void loop(){
+// ---- Multi-comet animation (non-blocking, millis based) ----
+#define COMET_COUNT 3
+struct Comet { float pos, speed, decay; int8_t dir; uint8_t len; CRGB color; };
 
+static void addPx(int i, CRGB c, float v) {
+  if (i < 0 || i >= NUM_LEDS) return;
+  c.nscale8_video((uint8_t)(v * 255));
+  leds[i] += c;
+}
+
+static void spawnComet(Comet &m, int maxLead) {
+  m.dir   = random(2) ? 1 : -1;
+  m.len   = random(8, 31);                       // tail length 8..30
+  m.speed = random(60, 301);                     // LEDs per second
+  m.decay = pow(0.03f, 1.0f / (m.len - 1));      // tail ends at ~3%
+  m.color = CHSV(random(256), 255, 255);
+  int lead = random(0, maxLead);                 // stagger start off-strip
+  m.pos = m.dir > 0 ? -lead : NUM_LEDS - 1 + lead;
+}
+
+void cometAnimation(uint8_t opacity, uint32_t durationMs) {
+  Comet c[COMET_COUNT];
+  bool alive[COMET_COUNT];
+  for (uint8_t k = 0; k < COMET_COUNT; k++) { spawnComet(c[k], 150); alive[k] = true; }
+  FastLED.setBrightness(opacity ? opacity : 255);
+
+  uint32_t endAt = millis() + durationMs, last = millis();
+  bool any = true;
+  while (any) {
+    uint32_t now = millis();
+    float dt = (now - last) / 1000.0f;
+    last = now;
+    FastLED.clear();                             // full redraw each frame = no flicker
+    any = false;
+    for (uint8_t k = 0; k < COMET_COUNT; k++) {
+      if (!alive[k]) continue;
+      Comet &m = c[k];
+      m.pos += m.dir * m.speed * dt;
+      float b = 1.0f;                            // head 100%, then decays
+      for (uint8_t j = 0; j < m.len; j++, b *= m.decay) {
+        float x = m.pos - m.dir * j;
+        int lo = (int)floor(x);
+        float f = x - lo;                        // sub-pixel blend = smooth motion
+        addPx(lo, m.color, b * (1 - f));
+        addPx(lo + 1, m.color, b * f);
+      }
+      // tail has fully left the strip -> it faded out LED by LED
+      bool done = m.dir > 0 ? (m.pos - m.len > NUM_LEDS) : (m.pos + m.len < 0);
+      if (done) {
+        if (now < endAt) spawnComet(m, 30); else { alive[k] = false; continue; }
+      }
+      any = true;
+    }
+    FastLED.show();
+    yield();
+  }
+}
+
+// ---- Simple fade: all LEDs fade from current colour to selected colour, then stay on ----
+CRGB fadeCur = CRGB::Black;   // colour currently shown (black at start = fade-in)
+
+void fadeColor(uint8_t red, uint8_t green, uint8_t blue, uint8_t opacity) {
+  CRGB from = fadeCur, to = CRGB(red, green, blue);
+  to.nscale8_video(opacity);              // opacity folded into colour so it fades too
+  FastLED.setBrightness(255);
+  const uint16_t FADE_MS = 1000;          // transition time
+  uint32_t t0 = millis(), e;
+  while ((e = millis() - t0) < FADE_MS) {
+    fill_solid(leds, NUM_LEDS, blend(from, to, e * 255 / FADE_MS));
+    FastLED.show();
+    yield();
+  }
+  fill_solid(leds, NUM_LEDS, to);
+  FastLED.show();
+  fadeCur = to;
+}
+
+void loop(){
   while (wifiMulti.run() != WL_CONNECTED){
     conncection();
   }
@@ -230,10 +306,16 @@ void loop(){
                 uint8_t blue  = doc["blue"];
                 uint8_t opacity  = doc["opacity"];
                 String effect  =  doc["effect"];
-                if(effect == "shootingstar") {
+                if(effect != "fade") fadeCur = CRGB::Black;   // other effects reset fade start
+                if(effect == "fade") {
+                    fadeColor(red,green,blue,opacity);
+                    updateData.add("/isStripLightUpdated",false);   // run once, then stay on
+                } else if(effect == "shootingstar") {
                   int startPosition = 0;
                   CRGB color = CRGB(red, green, blue); // Red color, adjust values as needed
                   animateShootingStar(startPosition, color, STAR_LENGTH, STAR_SPEED);
+                } else if(effect == "comet") {
+                    cometAnimation(opacity, 20000);
                 } else if(effect == "sweepAnimation") {
                     sweepAnimation(red,green,blue,opacity);
                 } else if(effect == "sweepAnimation1") {
